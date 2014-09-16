@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import AgentJ.Transformers.*;
 import AgentJ.Utils.*;
@@ -109,35 +111,22 @@ public final class Agent {
 		boolean printDebug = true;
 
 
-
-		//INSTRUMENTATION.addTransformer(new FirstPass(), true);
-
-
-		//ArrayList<Class<?>> isModifiable = new ArrayList<Class<?>>();
-		//ArrayList<Class<?>> unModifiable = new ArrayList<Class<?>>();
-		//ArrayList<Class<?>> transformable = new ArrayList<Class<?>>();
-
-
 		if (printDebug) {
 			System.out.println("\n----------------Inserting Visitor Counter----------------\n");
 			System.out.printf("%-55s %-55s %-45s\n", "NAME", "CANONICAL NAME", "CLASSLOADER");
 		}
 
-		HitCounter counter = new HitCounter();
-		ClassRedefinition redefs = new ClassRedefinition(counter);
+
+		ClassRedefinition redefs = new ClassRedefinition(new HitCounter());
 		INSTRUMENTATION.addTransformer(redefs, true);
+
 
 		//for (@SuppressWarnings("rawtypes") Class c : INSTRUMENTATION.getInitiatedClasses(ClassLoader.getSystemClassLoader())) {
 		for (Class<?> c : INSTRUMENTATION.getAllLoadedClasses()) {
 			if (canInstrument(c)) {
-				//transformable.add(c);
-				//isModifiable.add(c);
 				try {
 					System.out.printf("%-55s %-55s %-45s\n", c.getName(), c.getCanonicalName(), c.getClassLoader());
-					//ClassRedefiner.redefine(c, HitCounter.class, INSTRUMENTATION);
 					INSTRUMENTATION.retransformClasses(new Class<?>[] { c });
-
-					//ClassRedefiner.redefine(c, Transforms.class, INSTRUMENTATION);
 				} catch (Exception e) {
 					e.printStackTrace();
 					//System.exit(1);
@@ -170,34 +159,13 @@ public final class Agent {
 	}
 
 	public static void agentmain(String args, Instrumentation instr) throws IOException {
-		premain(args, instr);
+		//premain(args, instr);
+		INSTRUMENTATION = instr;
+		onAgentStartup(true);
 	}
 
 	public static void premain(String args, Instrumentation instr) {
 		INSTRUMENTATION = instr;
-
-		//HitCounter counter = new HitCounter();
-		//INSTRUMENTATION.addTransformer(counter, false);
-
-		//Transforms transformer = new Transforms();
-		//INSTRUMENTATION.addTransformer(transformer);
-
-		//ClassRedefinition redefs = new ClassRedefinition(HitCounter.class);
-		//INSTRUMENTATION.addTransformer(redefs, true);
-		/*for (Class<?> c : INSTRUMENTATION.getAllLoadedClasses()) {
-			if (canInstrument(c)) {
-				//transformable.add(c);
-				//isModifiable.add(c);
-				try {
-					System.out.printf("%-55s %-55s %-45s\n", c.getName(), c.getCanonicalName(), c.getClassLoader());
-					//ClassRedefiner.redefine(c, FirstPass.class, INSTRUMENTATION);
-					INSTRUMENTATION.retransformClasses(new Class<?>[] { c });
-				} catch (Exception e) {
-					e.printStackTrace();
-					//System.exit(1);
-				}
-			}
-		}*/
 		onAgentStartup(true);
 	}
 
@@ -333,7 +301,7 @@ public final class Agent {
 		return null;
 	}
 
-	public static byte[] getByteCode(Class<?> c) 
+	/*public static byte[] getByteCode(Class<?> c) 
 			throws IOException {
 		byte[] bytecode = null;
 		if (c != null) {
@@ -346,23 +314,17 @@ public final class Agent {
 			bytecode = writer.toByteArray();
 		}
 		return bytecode;
-	}
+	}*/
 
+	/*
+	 * Get byte array from class file
+	 */
 	public static byte[] getByteArray(Class<?> c) {
 
 		if (c != null) {
 			try {
 
 				InputStream in = c.getClass().getClassLoader().getResourceAsStream(c.getName().replace('.', '/') + ".class");
-				//ByteArrayOutputStream out = new ByteArrayOutputStream();
-				//IOUtils.copy(in, out);
-				//IOUtils.closeQuietly(in);
-				//IOUtils.closeQuietly(out);
-				//byte[] bytes = out.toByteArray();
-
-
-
-				//return out.toByteArray();
 				byte[] bytes = IOUtils.toByteArray(in);
 				in.close();
 				System.out.printf(" >>>>>>> %-55s\n", c.getName());
@@ -382,8 +344,10 @@ public final class Agent {
 		System.out.println("logging complete!");
 	}
 
+	/*
+	 * Get class from classname
+	 */
 	public static Class<?> getClass(String className) {
-
 		Class<?> result = null;
 		for (@SuppressWarnings("rawtypes") Class c : INSTRUMENTATION.getAllLoadedClasses()) {
 			//System.out.println("Trying to find class: " + className + " and this is: " + c.getName());
@@ -397,35 +361,12 @@ public final class Agent {
 	}
 
 	public static void countVisit(String methodName, String desc, String methodOwner) {
-		HitCounter.countVisit(methodName, desc, methodOwner);
+		long currentTime = System.nanoTime();
+		System.out.println(" Method: " + methodOwner + "." + methodName + "() | Time: " + currentTime);
+
+		HitCounter.countVisit(methodName, desc, methodOwner, currentTime);
+		//AgentData.hit(methodName, desc, methodOwner, currentTime);
 	}
-
-	/*public static boolean initiateSlimmer(String methodName, String desc, String methodOwner) {
-		boolean result = false;
-		int highest = 0;
-		String normalizedOwner = methodOwner.replaceAll(Pattern.quote("."), "/");
-		String normalizedDesc = (desc == null) ? "" : desc;
-		String methodFullName = normalizedOwner + "." + methodName + " >> " + normalizedDesc;
-		for (AtomicInteger x: visitCounts.values() ) {
-			if (x.get() > highest) highest = x.get();
-		}
-		if (highest > oldAge ) {
-			if ((visitCounts.containsKey(methodFullName) && visitCounts.get(methodFullName).get() == 0) ||
-					!visitCounts.containsKey(methodFullName)) {
-				result = true;
-			}
-
-		}
-		return result;
-	}
-
-	public static void initiateSlimmerA(String methodName, String desc, String methodOwner) {
-
-		if (initiateSlimmer(methodName, desc, methodOwner)) {
-
-		};
-	}*/
-
 
 
 

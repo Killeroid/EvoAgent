@@ -4,6 +4,7 @@ import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,7 +29,8 @@ import AgentJ.Utils.AgentData;
 
 
 public class HitCounter implements ClassFileTransformer{
-	private static Set<String> instrumentedClasses = new HashSet<String>();
+	
+	public static ConcurrentHashMap<String, AtomicLong> visitCounts = new ConcurrentHashMap<String, AtomicLong>(); //store number of visits
 	
 	
 	private ArrayList<String> noCounter = new ArrayList<String>(); //List of methods missing the counter
@@ -47,7 +49,7 @@ public class HitCounter implements ClassFileTransformer{
 		currentClassName = className.replaceAll(Pattern.quote("."), "/");
 		
 
-		if (!Agent.canInstrument(className) && instrumentedClasses.contains(normalizedClassName)) {
+		if (!Agent.canInstrument(className)) {
 			return classfileBuffer;
 			} 
 
@@ -68,11 +70,17 @@ public class HitCounter implements ClassFileTransformer{
 			String normalizedOwner = className.replaceAll(Pattern.quote("."), "/");
 			String normalizedDesc = (mNode.desc == null) ? "" : mNode.desc;
 			String methodFullName = normalizedOwner + "." + mNode.name + " >> " + normalizedDesc;
-			AgentData.visitCounts.putIfAbsent(methodFullName, new AtomicLong(0));
+			//AgentData.visitCounts.putIfAbsent(methodFullName, new AtomicLong(0));
 			//Note methods without the counter
 			if (!mNode.instructions.contains(visitCounterInsn)) {
 				noCounter.add(methodFullName);
 			}
+			
+			AgentData.visitStats.putIfAbsent(methodFullName, new HashMap<String, AtomicLong>() {{ 
+				put("visitCount", new AtomicLong(0));
+				put("lastVisit", new AtomicLong(System.currentTimeMillis()));
+				put("visitFreq", new AtomicLong(0));
+			}});
 		}
 		
 		reader = new ClassReader(classfileBuffer);
@@ -100,32 +108,44 @@ public class HitCounter implements ClassFileTransformer{
 		};
 		
 		reader.accept(visitor, ClassReader.EXPAND_FRAMES);
-				
-		instrumentedClasses.add(normalizedClassName); //Make sure not to instrument this class again
 		return writer.toByteArray();    
 	}	
 	
 	// Called by instrumented methods anytime they're accessed
-		public static void countVisit(String methodName, String desc, String methodOwner) {
+		public static void countVisit(String methodName, String desc, String methodOwner, long hitTime) {
 			String normalizedOwner = methodOwner.replaceAll(Pattern.quote("."), "/");
 			String normalizedDesc = (desc == null) ? "" : desc;
 			String methodFullName = normalizedOwner + "." + methodName + " >> " + normalizedDesc;
 			String methodCaller = getMethodCaller();
 			
-			//Count visits
-			AgentData.visitCounts.putIfAbsent(methodFullName, new AtomicLong(0));
-			AgentData.visitCounts.get(methodFullName).incrementAndGet();
-			
-			//Count number of times invokee
-			AgentData.methodInvokeeCount.putIfAbsent(methodCaller, new AtomicLong(0));
-			AgentData.methodInvokeeCount.get(methodCaller).incrementAndGet();
-			
-			
-			System.out.print(" Method: " + normalizedOwner + "." + methodName + "() | Visit: " + AgentData.visitCounts.get(methodFullName).get());
-			System.out.print(" | ");
-			System.out.print("Invoked by " + methodCaller + "\n");
-			
-			
+			if (AgentData.visitStats.containsKey(methodFullName)) {
+				//Count visits
+				long count = AgentData.visitStats.get(methodFullName).get("visitCount").incrementAndGet();
+				long lastVisit = AgentData.visitStats.get(methodFullName).get("lastVisit").getAndSet(hitTime);
+				
+				if (count <= 2) {
+					AgentData.visitStats.get(methodFullName).get("visitFreq").set(hitTime - lastVisit);
+				} else {
+					long lastVisitFreq = AgentData.visitStats.get(methodFullName).get("visitFreq").get();
+					//long newVisitFreq = ((hitTime - lastVisit) + ((count - 2) * lastVisitFreq)) / (count - 1) ;
+					AgentData.visitStats.get(methodFullName).get("visitFreq").set(((hitTime - lastVisit) + ((count - 2) * lastVisitFreq)) / (count - 1));
+				}
+				
+				
+				//Count number of times invokee
+				AgentData.methodInvokeeCount.putIfAbsent(methodCaller, new AtomicLong(0));
+				AgentData.methodInvokeeCount.get(methodCaller).incrementAndGet();
+				
+				
+				System.out.print(" Method: " + normalizedOwner + "." + methodName + "() | Visit: " + AgentData.visitStats.get(methodFullName).get("visitCount")
+						 + " visitFreq: " + AgentData.visitStats.get(methodFullName).get("visitFreq").get());
+				System.out.print(" | ");
+				System.out.print("Invoked by " + methodCaller + "\n");
+			} else {
+				System.out.print(" [FAIL] Method: " + normalizedOwner + "." + methodName + "() | Visit: ");
+				System.out.print(" | ");
+				System.out.print("Invoked by " + methodCaller + "\n");
+			}
 		}
 		
 		// Update call counter when method is removed
@@ -184,6 +204,8 @@ public class HitCounter implements ClassFileTransformer{
 			super.visitLdcInsn(methodName);
 			super.visitLdcInsn(methodDesc);
 		    super.visitLdcInsn(methodOwner);
+		    //super.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "currentTimeMillis", "()J");
+			//super.visitMethodInsn(Opcodes.INVOKESTATIC, "AgentJ/Agent", "countVisit", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V", false);
 		    super.visitMethodInsn(Opcodes.INVOKESTATIC, "AgentJ/Agent", "countVisit", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", false);
 		}
 		
@@ -236,6 +258,7 @@ public class HitCounter implements ClassFileTransformer{
 			super.visitLdcInsn(methodName);
 			super.visitLdcInsn(methodDesc);
 			super.visitLdcInsn(methodOwner);
+			//super.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "currentTimeMillis", "()J");
 			super.visitMethodInsn(Opcodes.INVOKESTATIC, "AgentJ/Agent", "countVisit", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", false);
 			//deBug(opcode);
 		  }

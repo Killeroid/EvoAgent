@@ -152,6 +152,24 @@ public class EvoDaemon implements Runnable {
 			} 
 		}	
 	}
+	
+	class HitFrequencyCounter implements Runnable {
+		private int period;
+		
+		public HitFrequencyCounter(int periodInSecs) {
+			this.period = periodInSecs;
+		}
+		
+		public HitFrequencyCounter() {
+			this.period = 60;
+		}
+		
+		public void run() {
+			long startTime = System.currentTimeMillis();
+			
+		}
+		
+	}
 
 	
 
