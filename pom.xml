@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.inria</groupId>
 	<artifactId>AgentJ</artifactId>
-	<version>0.0.1</version>
+	<version>0.0.2</version>
 	<name>AgentJ</name>
 	<description>JVM Agent</description>
 
@@ -36,34 +36,69 @@
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-assembly-plugin</artifactId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>2.3</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
 						<goals>
-							<goal>single</goal>
+							<goal>shade</goal>
 						</goals>
+						<configuration>
+							<relocations>
+								<relocation>
+									<pattern>org.objectweb.asm</pattern>
+									<shadedPattern>org.agentj.objectweb.asm</shadedPattern>
+								</relocation>
+							</relocations>
+							<archive>
+								<manifest>
+									<addClasspath>true</addClasspath>
+									<mainClass>AgentJ.ASM</mainClass>
+								</manifest>
+								<manifestEntries>
+									<premain-class>AgentJ.Agent</premain-class>
+									<agent-class>AgentJ.Agent</agent-class>
+									<can-redefine-classes>true</can-redefine-classes>
+									<can-retransform-classes>true</can-retransform-classes>
+									<can-set-native-method-prefix>true</can-set-native-method-prefix>
+								</manifestEntries>
+							</archive>
+							<finalName>uber-${project.artifactId}-${project.version}</finalName>
+						</configuration>
 					</execution>
 				</executions>
-				<configuration>
-					<descriptorRefs>
-						<descriptorRef>jar-with-dependencies</descriptorRef>
-					</descriptorRefs>
-					<archive>
-						<manifest>
-							<addClasspath>true</addClasspath>
-							<mainClass>AgentJ.ASM</mainClass>
-						</manifest>
-						<manifestEntries>
-							<premain-class>AgentJ.Agent</premain-class>
-							<agent-class>AgentJ.Agent</agent-class>
-							<can-redefine-classes>true</can-redefine-classes>
-							<can-retransform-classes>true</can-retransform-classes>
-							<can-set-native-method-prefix>true</can-set-native-method-prefix>
-						</manifestEntries>
-					</archive>
-				</configuration>
 			</plugin>
+<!-- 			<plugin> -->
+<!-- 				<groupId>org.apache.maven.plugins</groupId> -->
+<!-- 				<artifactId>maven-assembly-plugin</artifactId> -->
+<!-- 				<executions> -->
+<!-- 					<execution> -->
+<!-- 						<phase>package</phase> -->
+<!-- 						<goals> -->
+<!-- 							<goal>single</goal> -->
+<!-- 						</goals> -->
+<!-- 					</execution> -->
+<!-- 				</executions> -->
+<!-- 				<configuration> -->
+<!-- 					<descriptorRefs> -->
+<!-- 						<descriptorRef>jar-with-dependencies</descriptorRef> -->
+<!-- 					</descriptorRefs> -->
+<!-- 					<archive> -->
+<!-- 						<manifest> -->
+<!-- 							<addClasspath>true</addClasspath> -->
+<!-- 							<mainClass>AgentJ.ASM</mainClass> -->
+<!-- 						</manifest> -->
+<!-- 						<manifestEntries> -->
+<!-- 							<premain-class>AgentJ.Agent</premain-class> -->
+<!-- 							<agent-class>AgentJ.Agent</agent-class> -->
+<!-- 							<can-redefine-classes>true</can-redefine-classes> -->
+<!-- 							<can-retransform-classes>true</can-retransform-classes> -->
+<!-- 							<can-set-native-method-prefix>true</can-set-native-method-prefix> -->
+<!-- 						</manifestEntries> -->
+<!-- 					</archive> -->
+<!-- 				</configuration> -->
+<!-- 			</plugin> -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
