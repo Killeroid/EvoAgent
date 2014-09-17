@@ -43,6 +43,7 @@ public class AgentData {
 			put("java.lang.instrument", 0);
 			put("sun.reflect", 0);
 			put("java.lang.Shutdown", 0);
+			put("com.sun.", 0);
 			
 	}};
 	
