@@ -83,7 +83,7 @@ public final class Agent {
 		
 		try {
 			Class<?> daemonClass = Thread.currentThread().getContextClassLoader().loadClass("EvoDaemon.EvoDaemon");
-			Thread daemon = new Thread((Runnable) daemonClass.getDeclaredConstructor(Instrumentation.class, String.class).newInstance(Agent.INSTRUMENTATION, jarpath));
+			Thread daemon = new Thread((Runnable) daemonClass.getDeclaredConstructor(String.class).newInstance(jarpath));
 			daemon.setName("EvoDaemon");
 			//daemon.setUncaughtExceptionHandler(new DefaultExceptionHandler());
 			daemon.start();
